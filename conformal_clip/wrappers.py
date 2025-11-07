@@ -6,6 +6,15 @@ import torch
 import torch.nn.functional as F
 from sklearn.base import BaseEstimator, ClassifierMixin
 
+try:
+    import clip  # OpenAI CLIP
+except ImportError as e:
+    raise ImportError(
+        "OpenAI CLIP is required. Install it with:\n"
+        "    pip install git+https://github.com/openai/CLIP.git"
+    ) from e
+
+
 
 @torch.no_grad()
 def encode_and_normalize(model, imgs: Sequence[torch.Tensor]) -> torch.Tensor:
@@ -61,13 +70,32 @@ def _stack_features(seq: Sequence[torch.Tensor]) -> torch.Tensor:
 
 class CLIPWrapper(BaseEstimator, ClassifierMixin):
     """
-    sklearn-compatible classifier for few-shot CLIP.
+    sklearn-compatible classifier for few-shot CLIP using vision encoder only.
 
-    Scores by cosine similarity to each class's few-shot bank:
-    - For each class, take the max similarity to its bank as the class logit.
-    - Apply temperature-scaled softmax to obtain probabilities.
+    This wrapper performs few-shot classification by computing cosine similarities between
+    test image features and exemplar image features (no text encoding). For each class,
+    it uses the maximum similarity to any exemplar in that class's bank as the class score,
+    then applies temperature-scaled softmax to obtain probabilities.
 
-    Now supports passing either images or precomputed features.
+    Supports both raw images (which will be encoded) and precomputed feature vectors.
+
+    Attributes:
+        model: CLIP model with encode_image method.
+        nominal_feats (torch.Tensor): L2-normalized features of nominal exemplars, shape [N_nom, D].
+        defective_feats (torch.Tensor): L2-normalized features of defective exemplars, shape [N_def, D].
+        temperature (float): Temperature parameter for softmax scaling (default 1.0).
+        classes_ (np.ndarray): Array of class labels (e.g., ["Nominal", "Defective"]).
+
+    Example:
+        >>> clip_wrapper = CLIPWrapper(
+        ...     model=clip_model,
+        ...     nominal_feats=nominal_bank_features,
+        ...     defective_feats=defective_bank_features,
+        ...     temperature=1.0,
+        ...     class_labels=("Nominal", "Defective")
+        ... )
+        >>> probabilities = clip_wrapper.predict_proba(test_images)
+        >>> predictions = clip_wrapper.predict(test_images)
     """
 
     _estimator_type = "classifier"
@@ -88,12 +116,32 @@ class CLIPWrapper(BaseEstimator, ClassifierMixin):
         self._estimator_type = "classifier"  # also set at instance level
 
     def fit(self, X, y=None):
+        """
+        Fit method for sklearn API compatibility (no-op).
+
+        The model uses precomputed exemplar features and requires no training.
+
+        Args:
+            X: Ignored.
+            y: Ignored.
+
+        Returns:
+            self
+        """
         # No fitting required. Provided for sklearn API compatibility.
         return self
 
     @torch.no_grad()
     def _logits_from_feature(self, tf: torch.Tensor) -> torch.Tensor:
-        """Compute logits from a single normalized feature vector [D]."""
+        """
+        Compute temperature-scaled logits from a single normalized feature vector.
+
+        Args:
+            tf (torch.Tensor): Normalized feature vector of shape [D].
+
+        Returns:
+            torch.Tensor: Temperature-scaled logits of shape [2].
+        """
         # Ensure normalization just in case the caller supplied raw features
         tf = tf / tf.norm(dim=-1, keepdim=True)
 
@@ -142,11 +190,31 @@ class CLIPWrapper(BaseEstimator, ClassifierMixin):
         return encode_and_normalize(self.model, list(X))
 
     def predict_proba(self, X: Sequence[torch.Tensor] | torch.Tensor) -> np.ndarray:
+        """
+        Predict class probabilities for input images or features.
+
+        Args:
+            X: Either a sequence of image tensors, a single image tensor,
+               or precomputed feature tensor(s).
+
+        Returns:
+            np.ndarray: Class probabilities of shape [N, C] where C is number of classes.
+        """
         feats = self._to_features(X)  # [N, D]
         logits = torch.stack([self._logits_from_feature(tf) for tf in feats], dim=0)
         return F.softmax(logits, dim=1).cpu().numpy()
 
     def predict(self, X: Sequence[torch.Tensor] | torch.Tensor) -> np.ndarray:
+        """
+        Predict class labels for input images or features.
+
+        Args:
+            X: Either a sequence of image tensors, a single image tensor,
+               or precomputed feature tensor(s).
+
+        Returns:
+            np.ndarray: Predicted class labels of shape [N].
+        """
         proba = self.predict_proba(X)
         idx = np.argmax(proba, axis=1)
         return self.classes_[idx]

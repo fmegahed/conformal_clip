@@ -2,12 +2,6 @@
 # openai CLIP repo installation see:
 # pip install git+https://github.com/openai/CLIP.git
 
-jupyter
-matplotlib
-numpy
-pandas
-Pillow
-requests
-scikit-learn
-seaborn
-torch
+git+https://github.com/openai/CLIP.git
+conformal-clip
+torchinfo

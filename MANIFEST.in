@@ -1,0 +1,23 @@
+include LICENSE
+include README.md
+include CHANGELOG.md
+
+# Exclude development/documentation files
+exclude index.qmd
+exclude index.html
+recursive-exclude index_files *
+exclude .Rproj.user
+exclude *.Rproj
+recursive-exclude .Rproj.user *
+exclude clean_build.py
+
+# Exclude examples and tests from source distribution
+recursive-exclude examples *
+recursive-exclude tests *
+exclude pytest.ini
+
+# Exclude results directory
+recursive-exclude results *
+
+# Exclude data directory (data is in separate package)
+recursive-exclude data *

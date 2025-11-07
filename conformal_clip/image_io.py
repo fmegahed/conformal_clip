@@ -39,6 +39,20 @@ def load_image(image_path_or_url: str, mode: str = "RGB", timeout: int = 20) -> 
 
 # Helper: sample without replacement and return (chosen, remaining)
 def sample_urls(urls, k, rng):
+    """
+    Sample k URLs without replacement and return both chosen and remaining URLs.
+
+    Args:
+        urls: List or array of URL strings.
+        k (int): Number of URLs to sample.
+        rng: NumPy random number generator (e.g., np.random.default_rng()).
+
+    Returns:
+        tuple: (chosen_urls, remaining_urls) where both are lists.
+
+    Raises:
+        ValueError: If k exceeds the number of available URLs.
+    """
     urls = np.array(urls)
     if k > len(urls):
         raise ValueError(f"Requested {k} but only {len(urls)} available.")

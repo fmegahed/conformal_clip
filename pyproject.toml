@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=80.9", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "conformal-clip"
+version = "0.1.1"
+description = "Few-shot CLIP classification with conformal prediction and calibrated probabilities"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE" }
+
+authors = [
+  { name = "Fadel M. Megahed", email = "fmegahed@miamioh.edu" },
+  { name = "Ying-Ju (Tessa) Chen", email = "ychen4@udayton.edu" }
+]
+
+maintainers = [
+  { name = "Fadel M. Megahed", email = "fmegahed@miamioh.edu" },
+  { name = "Ying-Ju (Tessa) Chen", email = "ychen4@udayton.edu" }
+]
+
+keywords = ["CLIP", "conformal prediction", "few-shot learning", "computer vision"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Manufacturing",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Scientific/Engineering :: Image Recognition"
+]
+
+dependencies = [
+  "torch",
+  "torchinfo",
+  "numpy",
+  "pandas",
+  "Pillow",
+  "requests",
+  "scikit-learn",
+  "matplotlib",
+  "seaborn",
+  "clip @ git+https://github.com/openai/CLIP.git"
+]
+
+[project.urls]
+Homepage = "https://github.com/fmegahed/conformal_clip"
+Repository = "https://github.com/fmegahed/conformal_clip"
+Documentation = "https://fmegahed.github.io/research/conformal_clip/"
+"Bug Tracker" = "https://github.com/fmegahed/conformal_clip/issues"
+
+[tool.setuptools.packages.find]
+include = ["conformal_clip*"]
+exclude = ["examples*", "tests*", "data*"]
+
+[project.optional-dependencies]
+data = ["conformal-clip-data==0.1.4"]

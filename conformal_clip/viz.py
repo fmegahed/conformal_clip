@@ -6,7 +6,22 @@ import seaborn as sns
 import numpy as np
 
 def plot_confusion_matrix(cm, labels: Sequence[str], title: str = "Confusion Matrix", save_path: str | None = None):
-    """Plot and optionally save a confusion matrix heatmap."""
+    """
+    Plot and optionally save a confusion matrix heatmap.
+
+    Args:
+        cm: Confusion matrix array (typically from sklearn.metrics.confusion_matrix).
+        labels: Class labels for axis tick labels.
+        title: Plot title (default "Confusion Matrix").
+        save_path: If provided, saves the figure to this path; otherwise displays it.
+
+    Example:
+        >>> from sklearn.metrics import confusion_matrix
+        >>> cm = confusion_matrix(y_true, y_pred)
+        >>> plot_confusion_matrix(cm, labels=["Nominal", "Defective"],
+        ...                       title="My Confusion Matrix",
+        ...                       save_path="results/cm.png")
+    """
     plt.figure(figsize=(8, 6))
     sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=labels, yticklabels=labels)
     plt.title(title)

@@ -89,6 +89,18 @@ def _predict_sets_global(
     q: float,
     allow_empty: bool = False
 ):
+    """
+    Predict conformal sets using a single global threshold.
+
+    Args:
+        estimator: Fitted classifier with predict_proba method.
+        X: Images or precomputed features.
+        q: Global nonconformity score threshold.
+        allow_empty: If False, forces at least one label (argmax).
+
+    Returns:
+        List of prediction sets, one per sample in X.
+    """
     probs = estimator.predict_proba(X)  # [n, C]
     sets = []
     for i in range(probs.shape[0]):
@@ -106,6 +118,18 @@ def _predict_sets_mondrian(
     q_map: Dict[str, float],
     allow_empty: bool = False
 ):
+    """
+    Predict conformal sets using class-conditional (Mondrian) thresholds.
+
+    Args:
+        estimator: Fitted classifier with predict_proba method.
+        X: Images or precomputed features.
+        q_map: Dictionary mapping class labels to their thresholds.
+        allow_empty: If False, forces at least one label (argmax).
+
+    Returns:
+        List of prediction sets, one per sample in X.
+    """
     probs = estimator.predict_proba(X)  # [n, C]
     sets = []
     for i in range(probs.shape[0]):
@@ -145,7 +169,72 @@ def few_shot_fault_classification_conformal(
     """
     Few-shot CLIP classification with conformal prediction and optional probability calibration.
 
-    Images in calibration and test are encoded exactly once and reused throughout.
+    This function performs few-shot image classification using CLIP's vision encoder only (no text encoding
+    for test images). It creates set-valued predictions with finite-sample coverage guarantees via conformal
+    prediction, and optionally calibrates probabilities using isotonic regression or Platt scaling.
+
+    Images are encoded exactly once and features are reused throughout to maximize efficiency.
+
+    Args:
+        model: CLIP model with encode_image method.
+        test_images: List of preprocessed test image tensors.
+        test_image_filenames: List of filenames corresponding to test_images.
+        nominal_images: List of preprocessed nominal (non-defective) exemplar images.
+        nominal_descriptions: List of text descriptions for nominal exemplars (used for traceability only).
+        defective_images: List of preprocessed defective exemplar images.
+        defective_descriptions: List of text descriptions for defective exemplars (used for traceability only).
+        calib_images: List of preprocessed calibration image tensors.
+        calib_labels: List of ground-truth labels for calibration images (e.g., ["Nominal", "Defective", ...]).
+        alpha: Miscoverage level for conformal prediction (default 0.1 targets ~90% coverage).
+        temperature: Temperature scaling parameter for softmax (default 1.0).
+        mondrian: If True, uses class-conditional (Mondrian) conformal prediction; if False, uses global.
+        class_labels: Tuple of class names (default ("Nominal", "Defective")).
+        csv_path: Directory to save the output CSV (if None, CSV is not saved).
+        csv_filename: Name of the output CSV file (default "image_classification_results_conformal.csv").
+        print_one_liner: If True, prints a summary line for each test image.
+        seed: Random seed for reproducibility (default 2025; set to None to disable seeding).
+        prob_calibration: Probability calibration method: None, "isotonic", or "sigmoid" (default None).
+        allow_empty: If True, allows empty prediction sets (abstention); if False, forces at least one label.
+
+    Returns:
+        List of dictionaries, one per test image, containing:
+            - datetime_of_operation: Timestamp of prediction.
+            - alpha: Miscoverage level used.
+            - temperature: Temperature parameter used.
+            - mondrian: Whether Mondrian conformal was used.
+            - image_path: Full path to the test image.
+            - image_name: Basename of the test image.
+            - point_prediction: Argmax class label.
+            - prediction_set: Pipe-delimited string of labels in the conformal set (or "ABSTAIN").
+            - set_size: Number of labels in the prediction set (0 for "ABSTAIN").
+            - {class_0}_prob: Calibrated probability for class 0.
+            - {class_1}_prob: Calibrated probability for class 1.
+            - nominal_description: Description of the closest nominal exemplar.
+            - defective_description: Description of the closest defective exemplar (or "N/A").
+
+    Notes:
+        - The function relies on CLIP's vision encoder only; text prompts for test images are not used.
+        - For probability calibration, test both "isotonic" and "sigmoid" on your data. According to sklearn
+          documentation, isotonic regression preserves monotonicity but may overfit on small calibration sets,
+          while sigmoid (Platt) scaling may be more robust for smaller sets. In our experiments with 100
+          calibration samples, isotonic performed better on textile defect images.
+        - Mondrian conformal provides per-class coverage; global conformal provides overall coverage.
+
+    Example:
+        >>> results = few_shot_fault_classification_conformal(
+        ...     model=clip_model,
+        ...     test_images=test_imgs,
+        ...     test_image_filenames=test_files,
+        ...     nominal_images=nom_bank,
+        ...     nominal_descriptions=["nominal 1", "nominal 2"],
+        ...     defective_images=def_bank,
+        ...     defective_descriptions=["defect 1", "defect 2"],
+        ...     calib_images=calib_imgs,
+        ...     calib_labels=calib_lbls,
+        ...     alpha=0.1,
+        ...     mondrian=True,
+        ...     prob_calibration="isotonic"
+        ... )
     """
     if seed is not None:
         np.random.seed(seed)

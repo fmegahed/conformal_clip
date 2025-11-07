@@ -8,13 +8,36 @@ import seaborn as sns
 from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 
 def make_true_labels_from_counts(labels: Sequence[str], label_counts: Sequence[int]) -> List[str]:
-    """Expand counts into a list of true labels in label order."""
+    """
+    Expand label counts into a list of true labels in order.
+
+    Args:
+        labels: Sequence of class label strings.
+        label_counts: Number of samples for each class, in the same order as labels.
+
+    Returns:
+        List of label strings with each label repeated according to its count.
+
+    Example:
+        >>> make_true_labels_from_counts(["Nominal", "Defective"], [3, 2])
+        ['Nominal', 'Nominal', 'Nominal', 'Defective', 'Defective']
+    """
     out: List[str] = []
     for lab, cnt in zip(labels, label_counts):
         out.extend([lab] * int(cnt))
     return out
 
 def _save_cm(cm, labels, path, fname, cm_title):
+    """
+    Internal helper to save a confusion matrix plot.
+
+    Args:
+        cm: Confusion matrix array.
+        labels: Class labels for axis tick labels.
+        path: Directory to save the plot (defaults to current directory if None).
+        fname: Filename for the saved plot.
+        cm_title: Title for the confusion matrix plot.
+    """
     os.makedirs(path or ".", exist_ok=True)
     fp = os.path.join(path or ".", fname)
     plt.figure(figsize=(8, 6))
