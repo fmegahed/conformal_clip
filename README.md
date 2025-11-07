@@ -71,21 +71,22 @@ data/                               # Example images
 
 ## 💻 Installation
 
-### Prerequisites
+> **⚠️ IMPORTANT**: You **must** install OpenAI CLIP first before installing conformal-clip. CLIP is not available on PyPI and must be installed directly from GitHub.
 
-**OpenAI CLIP** must be installed first:
+### Step 1: Install OpenAI CLIP (Required)
+
 ```bash
 pip install git+https://github.com/openai/CLIP.git
 ```
 
-### Option 1: Core Package Only
-Install just the conformal_clip library:
+### Step 2: Install conformal-clip
+
+**Option A: Core Package Only**
 ```bash
 pip install conformal-clip
 ```
 
-### Option 2: With Example Dataset
-Install the package **with the example textile dataset**:
+**Option B: With Example Dataset**
 ```bash
 pip install "conformal-clip[data]"
 ```

@@ -46,8 +46,7 @@ dependencies = [
   "requests",
   "scikit-learn",
   "matplotlib",
-  "seaborn",
-  "clip @ git+https://github.com/openai/CLIP.git"
+  "seaborn"
 ]
 
 [project.urls]
