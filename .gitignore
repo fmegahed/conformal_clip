@@ -162,3 +162,11 @@ Thumbs.db
 # Development utilities
 clean_build.py
 .github/GITHUB_ACTIONS_SETUP.md
+
+# Project-specific
+data/
+examples/
+results/
+index.html
+index.qmd
+index_files/
