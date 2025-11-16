@@ -1,3 +1,11 @@
+"""
+Conformal Prediction
+====================
+Few-shot classification with conformal prediction for finite-sample coverage guarantees.
+
+This module implements both global and Mondrian (class-conditional) conformal prediction
+with optional probability calibration (isotonic regression or Platt scaling).
+"""
 
 from __future__ import annotations
 from typing import Dict, Any, Sequence

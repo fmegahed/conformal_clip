@@ -1,3 +1,13 @@
+"""
+Metrics
+=======
+Classification and conformal prediction metrics computation.
+
+This module provides utilities to compute standard classification metrics
+(accuracy, precision, recall, F1, AUC, specificity) and conformal prediction
+metrics (coverage, set sizes) from result CSV files.
+"""
+
 from __future__ import annotations
 from typing import List, Sequence, Tuple
 import os
@@ -5,7 +15,6 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 
 def make_true_labels_from_counts(labels: Sequence[str], label_counts: Sequence[int]) -> List[str]:
     """
@@ -62,6 +71,16 @@ def compute_classification_metrics(
 
     Expects a column named point_prediction. Falls back to classification_result if missing.
     """
+    # Lazy import sklearn metrics only when needed
+    from sklearn.metrics import (
+        confusion_matrix,
+        accuracy_score,
+        precision_score,
+        recall_score,
+        f1_score,
+        roc_auc_score,
+    )
+
     df = pd.read_csv(csv_file)
     n = df.shape[0]
     if len(labels) != len(label_counts) or sum(label_counts) != n:

@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2025-11-16
+
+### Added
+- Backends module (`conformal_clip/backends.py`) to load CLIP-like models via open-clip-torch and vision-only models via timm.
+  - Exposes `load_backend`, `VISION_LANGUAGE_BACKENDS`, and `VISION_ONLY_BACKENDS`.
+  - Supports openai, openclipbase, siglip2, eva-clip, mobileclip2, dinov3, mobilenetv4, plus custom ids.
+  - Loads HF token from `.env` via `HF_TOKEN` for gated models.
+- Benchmark utility (`conformal_clip/benchmark.py`) to compare backends across calibration (None/isotonic/sigmoid) and conformal modes (None/global/mondrian) on fixed splits.
+  - Returns classification and conformal metrics DataFrames plus styled views with yellow-highlighted best values.
+- Examples in `examples/`:
+  - `textile_openai.py`, `textile_openclipbase.py`, `textile_siglip2.py`, `textile_eva_clip.py`, `textile_mobileclip2.py`, `textile_dinov3.py`, `textile_mobilenetv4.py`.
+  - `benchmark_textile.py` demonstrating the full benchmark and saving HTML with highlights.
+
+### Changed
+- `wrappers.encode_and_normalize` now adds a batch dimension for 3D tensors before `encode_image`.
+- `zero_shot.evaluate_zero_shot_predictions` accepts a `tokenize_fn` compatible with OpenCLIP; still supports `clip_module.tokenize` if provided.
+- Public API now exports `load_backend`, `VISION_LANGUAGE_BACKENDS`, `VISION_ONLY_BACKENDS`, and `benchmark_models`.
+- README modernized to clarify OpenCLIP and timm usage and to document the new benchmark.
+
+### [Unreleased]
+
+### Added
+- New small backends for low-resource environments in `conformal_clip/backends.py`:
+  - CLIP-like: `clip_b32` (`ViT-B-32-quickgelu`), `clip_b16` (`ViT-B-16-quickgelu`).
+  - Vision-only (timm): `resnet18` (`resnet18.a1_in1k`), `efficientnet_b0` (`efficientnet_b0.ra_in1k`).
+- Resource-tiered benchmarking in `conformal_clip/benchmark.py` via `resource_tier` argument:
+  - `"low"`: default; small CLIP/timm models only (e.g., `clip_b32`, `clip_b16`, `siglip2`, `mobileclip2`, `mobilenetv4`, `resnet18`, `efficientnet_b0`).
+  - `"medium"`: low-tier plus mid-size models that should run on ~8–12 GB GPUs (e.g., `openai`, `resnet50`, `coca`, `dinov3`).
+  - `"high"`: all non-custom backends including heavy models (e.g., `openclipbase`, `vitg`, `eva02`, `convnext`).
+
+### Changed
+- `benchmark_models` now defaults `resource_tier` to `"low"` when `backends` is not provided, to avoid loading very large models by default.
+- Updated README benchmark example and resource warning to explain `resource_tier` and its default.
+
+
+
 ## [0.1.1] - 2025-11-06
 
 ### Added

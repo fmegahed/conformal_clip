@@ -1,7 +1,9 @@
-# clip==1.0
-# openai CLIP repo installation see:
-# pip install git+https://github.com/openai/CLIP.git
-
-git+https://github.com/openai/CLIP.git
+open-clip-torch
 conformal-clip
-torchinfo
+timm
+transformers
+pandas
+scikit-learn
+matplotlib
+seaborn
+hf_xet

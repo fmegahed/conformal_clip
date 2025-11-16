@@ -1,12 +1,20 @@
+"""
+Zero-Shot Evaluation
+====================
+Zero-shot classification evaluation for CLIP-like vision-language models.
+
+This module provides utilities to evaluate zero-shot predictions using
+text prompts and compute classification metrics.
+"""
+
 from __future__ import annotations
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Callable
 import os
 import pandas as pd
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 
 def evaluate_zero_shot_predictions(
     labels: List[str],
@@ -16,6 +24,7 @@ def evaluate_zero_shot_predictions(
     model,
     device: torch.device,
     clip_module=None,
+    tokenize_fn: Optional[Callable[[List[str]], torch.Tensor]] = None,
     save_confusion_matrix: bool = False,
     cm_title: str = "Confusion Matrix for Zero Shot Classification",
     short_labels: Optional[List[str]] = None,
@@ -42,10 +51,16 @@ def evaluate_zero_shot_predictions(
         metrics_df: Table of global classification metrics.
         results_df: Per-image results including probabilities.
     """
-    if clip_module is None:
-        raise ValueError("clip_module must be provided to tokenize labels")
+    # Resolve tokenizer from explicit function or provided clip_module
+    if tokenize_fn is None:
+        if clip_module is None:
+            raise ValueError("Provide either tokenize_fn or clip_module with .tokenize")
+        tokenize = getattr(clip_module, "tokenize", None)
+        if not callable(tokenize):
+            raise ValueError("clip_module does not provide a callable 'tokenize' function")
+        tokenize_fn = lambda labels_: tokenize(labels_).to(device)
 
-    text_inputs = clip_module.tokenize(labels).to(device)
+    text_inputs = tokenize_fn(labels)
     with torch.no_grad():
         text_features = model.encode_text(text_inputs)
         text_features = text_features / text_features.norm(dim=-1, keepdim=True)
@@ -57,7 +72,10 @@ def evaluate_zero_shot_predictions(
 
     for idx, image_tensor in enumerate(test_images):
         with torch.no_grad():
-            image_features = model.encode_image(image_tensor.to(device))
+            x = image_tensor.to(device)
+            if x.ndim == 3:
+                x = x.unsqueeze(0)
+            image_features = model.encode_image(x)
             image_features = image_features / image_features.norm(dim=-1, keepdim=True)
             similarity = (100.0 * image_features @ text_features.T).softmax(dim=-1)
             pred_idx = int(similarity.argmax().item())
@@ -72,6 +90,16 @@ def evaluate_zero_shot_predictions(
             })
 
     results_df = pd.DataFrame(results_data)
+
+    # Lazy import sklearn metrics at call time to avoid hard dependency at import
+    from sklearn.metrics import (
+        confusion_matrix,
+        accuracy_score,
+        precision_score,
+        recall_score,
+        f1_score,
+        roc_auc_score,
+    )
 
     y_true = [r["true_label"] for r in results_data]
     y_pred = [r["predicted_label"] for r in results_data]
@@ -115,8 +143,6 @@ def evaluate_zero_shot_predictions(
             short_labels = labels
         os.makedirs(cm_file_path or ".", exist_ok=True)
         save_path = os.path.join(cm_file_path or ".", cm_file_name)
-        import matplotlib.pyplot as plt
-        import seaborn as sns
         plt.figure(figsize=(8, 6))
         sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=short_labels, yticklabels=short_labels)
         plt.title(cm_title)

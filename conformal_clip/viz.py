@@ -1,9 +1,18 @@
+"""
+Visualization
+=============
+Utilities for plotting confusion matrices and other classification visualizations.
+
+This module provides simple plotting functions for confusion matrices
+with customizable styling and optional saving to disk.
+"""
+
 from __future__ import annotations
 from typing import Sequence
 import os
+import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-import numpy as np
 
 def plot_confusion_matrix(cm, labels: Sequence[str], title: str = "Confusion Matrix", save_path: str | None = None):
     """

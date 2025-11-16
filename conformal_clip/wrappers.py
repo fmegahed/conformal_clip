@@ -1,3 +1,11 @@
+"""
+Wrappers
+========
+sklearn-compatible classifier wrappers for CLIP models.
+
+This module provides CLIPWrapper, a few-shot classifier that performs
+vision-only similarity matching against exemplar banks without text encoding.
+"""
 
 from __future__ import annotations
 from typing import Sequence
@@ -5,14 +13,6 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from sklearn.base import BaseEstimator, ClassifierMixin
-
-try:
-    import clip  # OpenAI CLIP
-except ImportError as e:
-    raise ImportError(
-        "OpenAI CLIP is required. Install it with:\n"
-        "    pip install git+https://github.com/openai/CLIP.git"
-    ) from e
 
 
 
@@ -31,6 +31,9 @@ def encode_and_normalize(model, imgs: Sequence[torch.Tensor]) -> torch.Tensor:
     """
     outs = []
     for img in imgs:
+        # Ensure batch dimension if missing
+        if torch.is_tensor(img) and img.ndim == 3:
+            img = img.unsqueeze(0)
         emb = model.encode_image(img)
         if emb.ndim == 2 and emb.shape[0] == 1:
             emb = emb.squeeze(0)  # [D]
