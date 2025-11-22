@@ -165,8 +165,6 @@ clean_build.py
 
 # Project-specific
 data/
-examples/
-results/
 index.html
 index.qmd
 index_files/

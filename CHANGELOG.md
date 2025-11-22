@@ -5,7 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.2] - 2025-11-16
+
+## [0.2.1] — 2025-11-17
+
+### Changed
+- Backends module (`conformal_clip/backends.py`)**   
+  - Added `csv_path: Optional[str]` argument to allow full control over CSV output.  
+    Setting `csv_path=None` now cleanly disables all file writing.
+  - Added `csv_prefix: str` argument to let users prepend run identifiers to all CSVs  
+    without altering the internal filename format.
+  - Preserved the stable naming structure by keeping `csv_filename_template` responsible only  
+    for the core pattern (`{backend}_{cal}_{conf}.csv`) and applying `csv_prefix` on top.
+  - Introduced safe directory creation only when `csv_path` is not `None`.
+  - Updated conformal prediction calls to pass CSV arguments conditionally, so no files are produced  
+    when saving is disabled.
+  - Enhanced exemplar traceability by replacing placeholder empty descriptions with  
+    `"Nominal: nominal_i"` and `"Defective: defective_i"` auto-generated labels.
+  - Updated and expanded the function docstring to reflect new arguments, multi-CSV behavior,  
+    and the stable naming guarantees.
+
+
+
+## [0.2.0] - 2025-11-16
 
 ### Added
 - Backends module (`conformal_clip/backends.py`) to load CLIP-like models via open-clip-torch and vision-only models via timm.

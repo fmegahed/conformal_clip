@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 import math
+import os
 import numpy as np
 import pandas as pd
 import torch
@@ -190,12 +191,39 @@ def benchmark_models(
     calibration_methods: Sequence[Optional[str]] = (None, "isotonic", "sigmoid"),
     conformal_modes: Sequence[Optional[str]] = (None, "global", "mondrian"),
     alpha_list: Sequence[float] = (0.1,),
+    allow_empty: bool = False,
+    csv_path: Optional[str] = None,
+    csv_prefix: Optional[str] = "",
+    csv_filename_template: str = "{backend}_{cal}_{conf}.csv",
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.io.formats.style.Styler, pd.io.formats.style.Styler]:
     """
     Compare available backends across calibration and conformal configurations on fixed splits.
 
     Returns two DataFrames (classification metrics and conformal metrics) and their styled variants
     where the top value in each metric column is highlighted in yellow.
+
+    CSV Parameters:
+    ---------------
+    csv_path : Optional[str], default None
+        Directory where conformal prediction results are written as CSV files.
+        If None, no CSV files are saved.
+        When enabled, the function may generate multiple CSV files because each
+        combination of backend, calibration method, conformal mode, and alpha
+        produces a separate output file.
+
+    csv_prefix : str, default ""
+        Optional prefix added to every generated CSV filename.
+        This allows users to group or tag runs without changing the underlying
+        naming pattern.
+
+    csv_filename_template : str, default "{backend}_{cal}_{conf}.csv"
+        Template used to construct core filenames for the CSV outputs.
+        The structure of the filename remains stable because the template
+        defines the required pattern. The following template fields are available:
+            * backend : backend identifier
+            * cal : calibration method ("none", "isotonic", "sigmoid", etc.)
+            * conf : conformal mode ("global" or "mondrian")
+        The prefix provided through csv_prefix is prepended to this template.
 
     Notes:
       - Supports exactly two classes.
@@ -207,6 +235,10 @@ def benchmark_models(
     """
     if seed is not None:
         np.random.seed(seed)
+
+    # Ensuring folder exist if not none
+    if csv_path is not None:
+        os.makedirs(csv_path, exist_ok=True)
 
     # Resolve class labels
     uniq = list(dict.fromkeys(list(calib_labels) + list(test_labels)))
@@ -314,6 +346,16 @@ def benchmark_models(
 
             # Conformal variants
             for conf in conformal_modes:
+                # build the file name only if saving is enabled
+                if csv_path is not None:
+                    filename_core = csv_filename_template.format(
+                        backend=be,
+                        cal=cal_m or "none",
+                        conf=conf,
+                    )
+                    csv_filename = f"{csv_prefix}{filename_core}"
+                else:
+                    csv_filename = None
                 if conf is None:
                     continue
                 for alpha in alpha_list:
@@ -323,20 +365,21 @@ def benchmark_models(
                         test_images=tst_t,
                         test_image_filenames=[f"img_{i}" for i in range(len(tst_t))],
                         nominal_images=nom_t,
-                        nominal_descriptions=[""] * max(1, len(nom_t)),
+                        nominal_descriptions=[f"Nominal: nominal_{i}" for i in range(max(1, len(nom_t)))],
                         defective_images=def_t,
-                        defective_descriptions=[""] * max(1, len(def_t)),
+                        defective_descriptions=[f"Defective: defective_{i}" for i in range(max(1, len(def_t)))],
                         calib_images=cal_t,
                         calib_labels=calib_labels,
                         alpha=float(alpha),
                         temperature=temperature,
                         mondrian=(conf == "mondrian"),
                         class_labels=class_labels,
-                        csv_path=None,
                         print_one_liner=False,
                         seed=seed,
                         prob_calibration=(cal_m if cal_m is not None else None),
-                        allow_empty=False,
+                        allow_empty=allow_empty,
+                        csv_path=csv_path,
+                        csv_filename=csv_filename,
                     )
 
                     # Classification metrics from results

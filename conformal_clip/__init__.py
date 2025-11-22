@@ -41,7 +41,7 @@ Quick Start
     ... )
 """
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 __author__ = "Fadel M. Megahed, Ying-Ju (Tessa) Chen"
 __email__ = "fmegahed@miamioh.edu, ychen4@udayton.edu"
 

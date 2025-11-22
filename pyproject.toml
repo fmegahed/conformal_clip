@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "conformal-clip"
-version = "0.2.0"
+version = "0.2.1"
 description = "Few-shot CLIP classification with conformal prediction and calibrated probabilities"
 readme = "README.md"
 requires-python = ">=3.9"
