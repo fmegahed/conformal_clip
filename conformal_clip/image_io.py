@@ -1,7 +1,6 @@
 from PIL import Image
 from urllib.parse import urlparse
 from io import BytesIO
-import requests
 import numpy as np
 
 def load_image(image_path_or_url: str, mode: str = "RGB", timeout: int = 20) -> Image.Image:
@@ -17,6 +16,7 @@ def load_image(image_path_or_url: str, mode: str = "RGB", timeout: int = 20) -> 
 
     Raises:
         ValueError: If the input is not a string.
+        ImportError: If a URL is given but the optional ``requests`` package is not installed.
         IOError: If loading fails from path or URL.
     """
     if not isinstance(image_path_or_url, str):
@@ -24,6 +24,13 @@ def load_image(image_path_or_url: str, mode: str = "RGB", timeout: int = 20) -> 
 
     scheme = urlparse(image_path_or_url).scheme.lower()
     if scheme in {"http", "https"}:
+        try:
+            import requests  # optional; only required for URL loads
+        except ImportError as e:
+            raise ImportError(
+                "Loading images from URLs requires the optional 'requests' package. "
+                "Install it with `pip install requests`, or pass a local file path instead."
+            ) from e
         try:
             resp = requests.get(image_path_or_url, timeout=timeout)
             resp.raise_for_status()

@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.2.2] — 2026-05-19
+
+### Fixed
+- `conformal_clip/image_io.py` and `conformal_clip/io_github.py` previously imported `requests` at module top, but `requests` is not declared in package dependencies. On Python 3.10+ this raised `ModuleNotFoundError: No module named 'requests'` at import time, breaking calls to `load_image()` and `get_image_urls()` (and failing CI on those Python versions). Both modules now lazy-import `requests` only when a URL is actually fetched, matching the optional-HTTP-stack design described in `__init__.py`. If a URL is passed without `requests` installed, a clear `ImportError` is raised pointing the user at `pip install requests`.
+
+### Changed
+- README restructured for runnable, linearly-dependent code blocks:
+  - `Setup` now precedes `Quickstart`; every variable used in a code block is defined before it appears.
+  - `Setup` is split into Step 1 (device + backend), Step 2A/2B (example dataset *or* your own folders — both runnable, both produce the same path lists), and Step 3 (PIL banks, labels, filenames).
+  - Added a callout clarifying that `benchmark_models` takes PIL images while `few_shot_fault_classification_conformal` and `evaluate_zero_shot_predictions` take preprocessed tensors.
+  - Expanded `Examples` to cover textile, extrusion, microstructure, and pipe datasets, grouped by purpose.
+  - Reworked the custom-models section with a proper timm subsection, added a `custom-vision` load example, and noted that vision-only backends cannot be used for zero-shot.
+  - Updated `Project structure` to include `image_io.py`, `io_github.py`, `data_utils.py`.
+  - Added a Documentation badge linking to the docs site already listed in `pyproject.toml`.
+
+
 ## [0.2.1] — 2025-11-17
 
 ### Changed
@@ -26,15 +42,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
-## [0.2.0] - 2025-11-16
+## [0.2.0] — 2025-11-16
 
 ### Added
 - Backends module (`conformal_clip/backends.py`) to load CLIP-like models via open-clip-torch and vision-only models via timm.
   - Exposes `load_backend`, `VISION_LANGUAGE_BACKENDS`, and `VISION_ONLY_BACKENDS`.
   - Supports openai, openclipbase, siglip2, eva-clip, mobileclip2, dinov3, mobilenetv4, plus custom ids.
+  - Includes small backends for low-resource environments: `clip_b32` (`ViT-B-32-quickgelu`), `clip_b16` (`ViT-B-16-quickgelu`), `resnet18` (`resnet18.a1_in1k`), `efficientnet_b0` (`efficientnet_b0.ra_in1k`).
   - Loads HF token from `.env` via `HF_TOKEN` for gated models.
 - Benchmark utility (`conformal_clip/benchmark.py`) to compare backends across calibration (None/isotonic/sigmoid) and conformal modes (None/global/mondrian) on fixed splits.
   - Returns classification and conformal metrics DataFrames plus styled views with yellow-highlighted best values.
+  - Resource-tiered benchmarking via the `resource_tier` argument:
+    - `"low"`: default; small CLIP/timm models only (e.g., `clip_b32`, `clip_b16`, `siglip2`, `mobileclip2`, `mobilenetv4`, `resnet18`, `efficientnet_b0`).
+    - `"medium"`: low-tier plus mid-size models that should run on ~8–12 GB GPUs (e.g., `openai`, `resnet50`, `coca`, `dinov3`).
+    - `"high"`: all non-custom backends including heavy models (e.g., `openclipbase`, `vitg`, `eva02`, `convnext`).
 - Examples in `examples/`:
   - `textile_openai.py`, `textile_openclipbase.py`, `textile_siglip2.py`, `textile_eva_clip.py`, `textile_mobileclip2.py`, `textile_dinov3.py`, `textile_mobilenetv4.py`.
   - `benchmark_textile.py` demonstrating the full benchmark and saving HTML with highlights.
@@ -43,26 +64,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `wrappers.encode_and_normalize` now adds a batch dimension for 3D tensors before `encode_image`.
 - `zero_shot.evaluate_zero_shot_predictions` accepts a `tokenize_fn` compatible with OpenCLIP; still supports `clip_module.tokenize` if provided.
 - Public API now exports `load_backend`, `VISION_LANGUAGE_BACKENDS`, `VISION_ONLY_BACKENDS`, and `benchmark_models`.
-- README modernized to clarify OpenCLIP and timm usage and to document the new benchmark.
-
-### [Unreleased]
-
-### Added
-- New small backends for low-resource environments in `conformal_clip/backends.py`:
-  - CLIP-like: `clip_b32` (`ViT-B-32-quickgelu`), `clip_b16` (`ViT-B-16-quickgelu`).
-  - Vision-only (timm): `resnet18` (`resnet18.a1_in1k`), `efficientnet_b0` (`efficientnet_b0.ra_in1k`).
-- Resource-tiered benchmarking in `conformal_clip/benchmark.py` via `resource_tier` argument:
-  - `"low"`: default; small CLIP/timm models only (e.g., `clip_b32`, `clip_b16`, `siglip2`, `mobileclip2`, `mobilenetv4`, `resnet18`, `efficientnet_b0`).
-  - `"medium"`: low-tier plus mid-size models that should run on ~8–12 GB GPUs (e.g., `openai`, `resnet50`, `coca`, `dinov3`).
-  - `"high"`: all non-custom backends including heavy models (e.g., `openclipbase`, `vitg`, `eva02`, `convnext`).
-
-### Changed
-- `benchmark_models` now defaults `resource_tier` to `"low"` when `backends` is not provided, to avoid loading very large models by default.
-- Updated README benchmark example and resource warning to explain `resource_tier` and its default.
+- `benchmark_models` defaults `resource_tier` to `"low"` when `backends` is not provided, to avoid loading very large models by default.
+- README modernized to clarify OpenCLIP and timm usage and to document the new benchmark (including `resource_tier`).
 
 
-
-## [0.1.1] - 2025-11-06
+## [0.1.1] — 2025-11-06
 
 ### Added
 
@@ -140,7 +146,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated all examples and README to use new data package imports
 - Changed workflow from basic examples to comprehensive reproducible sampling approach
 
-## [0.1.0] - 2025-11-03
+## [0.1.0] — 2025-11-03
 
 ### Added
 - Initial implementation with core functionality

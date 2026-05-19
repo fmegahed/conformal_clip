@@ -1,5 +1,5 @@
 from typing import List, Optional
-import requests
+
 
 def get_image_urls(
     repo_owner: str,
@@ -23,7 +23,18 @@ def get_image_urls(
 
     Returns:
         List of raw.githubusercontent.com URLs for files in the subfolder.
+
+    Raises:
+        ImportError: If the optional ``requests`` package is not installed.
     """
+    try:
+        import requests  # optional; this module is only imported when the user calls it
+    except ImportError as e:
+        raise ImportError(
+            "get_image_urls requires the optional 'requests' package. "
+            "Install it with `pip install requests`."
+        ) from e
+
     api_url = (
         f"https://api.github.com/repos/{repo_owner}/{repo_name}/contents/"
         f"{base_path.strip('/')}/{subfolder.strip('/')}?ref={branch}"
