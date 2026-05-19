@@ -4,6 +4,7 @@
 [![Python versions](https://img.shields.io/pypi/pyversions/conformal-clip.svg)](https://pypi.org/project/conformal-clip/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Development Status](https://img.shields.io/badge/status-beta-orange.svg)](https://pypi.org/project/conformal-clip/)
+[![Documentation](https://img.shields.io/badge/docs-online-blue.svg)](https://fmegahed.github.io/research/conformal_clip/)
 
 Few-shot vision classification with conformal prediction and optional probability calibration.
 
@@ -78,27 +79,110 @@ Notes:
 
 ---
 
-## Quickstart
+## Setup
 
-Load a backend and run few-shot + conformal:
+All Quickstart blocks below build on a single setup flow: pick a device, load a backend, gather image paths, and split them into few-shot banks, a calibration set, and a test set. Run Step&nbsp;1, then **either Step&nbsp;2A or Step&nbsp;2B**, then Step&nbsp;3. After that you can run any Quickstart block.
+
+### Step 1 — Device + backend
 ```python
 import torch
-from conformal_clip import load_backend, few_shot_fault_classification_conformal
+from conformal_clip import load_backend
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model, preprocess_fn, _ = load_backend("openclipbase", None, device)
+model, preprocess_fn, tokenize_fn = load_backend("openclipbase", None, device)
+```
 
-# Prepare PIL -> tensor using preprocess_fn, then call few_shot_fault_classification_conformal
-# nominal_images, defective_images, calib_images, test_images: lists of preprocessed tensors
-# calib_labels: list[str] of ground-truth for calibration
+### Step 2 — Image paths (pick A or B)
+
+Both options produce the same six path lists (`nom_train`, `nom_calib`, `nom_test`, `def_train`, `def_calib`, `def_test`) that Step&nbsp;3 consumes.
+
+**Option A — example textile dataset (installed via `conformal-clip[data]`)**
+```python
+import os
+from conformal_clip_data import nominal_dir, local_dir, global_dir
+
+def list_paths(d):
+    exts = {".jpg", ".jpeg", ".png"}
+    return [os.path.join(d, f) for f in os.listdir(d) if os.path.splitext(f)[1].lower() in exts]
+
+nominal_paths = list_paths(nominal_dir())
+local_paths   = list_paths(local_dir())
+global_paths  = list_paths(global_dir())
+
+nom_train, nom_calib, nom_test = nominal_paths[:50], nominal_paths[50:100], nominal_paths[100:150]
+def_train = local_paths[:25]   + global_paths[:25]
+def_calib = local_paths[25:50] + global_paths[25:50]
+def_test  = local_paths[50:75] + global_paths[50:75]
+```
+
+**Option B — your own local folders**
+
+Expects a `nominal/` and a `defective/` directory; adjust slice sizes to your dataset.
+```python
+import os
+
+base_dir      = "./data/textile_images/simulated"
+nominal_dir   = os.path.join(base_dir, "nominal")
+defective_dir = os.path.join(base_dir, "defective")
+
+def list_paths(d):
+    exts = {".jpg", ".jpeg", ".png"}
+    return [os.path.join(d, f) for f in os.listdir(d) if os.path.splitext(f)[1].lower() in exts]
+
+nominal_paths   = list_paths(nominal_dir)
+defective_paths = list_paths(defective_dir)
+
+nom_train, nom_calib, nom_test = nominal_paths[:50],   nominal_paths[50:100],   nominal_paths[100:150]
+def_train, def_calib, def_test = defective_paths[:50], defective_paths[50:100], defective_paths[100:150]
+```
+
+### Step 3 — Build PIL banks, labels, and filenames
+
+This block runs after either Option A or Option B.
+```python
+import os
+from PIL import Image
+
+pil_nom_bank = [Image.open(p).convert("RGB") for p in nom_train]
+pil_def_bank = [Image.open(p).convert("RGB") for p in def_train]
+pil_calib    = [Image.open(p).convert("RGB") for p in (nom_calib + def_calib)]
+pil_test     = [Image.open(p).convert("RGB") for p in (nom_test  + def_test)]
+
+calib_labels   = ["Nominal"] * len(nom_calib) + ["Defective"] * len(def_calib)
+test_labels    = ["Nominal"] * len(nom_test)  + ["Defective"] * len(def_test)
+test_filenames = [os.path.basename(p) for p in (nom_test + def_test)]
+```
+
+> **PIL images vs. preprocessed tensors.** The APIs in this package differ in the form they expect:
+> - `benchmark_models` consumes **PIL images** directly and applies each backend's preprocessing internally as it sweeps.
+> - `few_shot_fault_classification_conformal` and `evaluate_zero_shot_predictions` consume **preprocessed tensors** — pass PIL images through `preprocess_fn` from `load_backend(...)` first.
+>
+> Setup ends with PIL banks (`pil_*`). Each Quickstart block below applies `preprocess_fn` when (and only when) it's needed.
+
+---
+
+## Quickstart
+
+### Few-shot classification with conformal prediction
+
+_Continues from Setup above._ Few-shot conformal expects preprocessed tensors, so we first run each PIL bank through `preprocess_fn` (returned by `load_backend` in Step&nbsp;1).
+
+```python
+from conformal_clip import few_shot_fault_classification_conformal
+
+nominal_images   = [preprocess_fn(img) for img in pil_nom_bank]
+defective_images = [preprocess_fn(img) for img in pil_def_bank]
+calib_images     = [preprocess_fn(img) for img in pil_calib]
+test_images      = [preprocess_fn(img) for img in pil_test]
+
 results = few_shot_fault_classification_conformal(
     model=model,
     test_images=test_images,
     test_image_filenames=test_filenames,
     nominal_images=nominal_images,
-    nominal_descriptions=["..."] * len(nominal_images),
+    nominal_descriptions=["nominal textile sample"] * len(nominal_images),
     defective_images=defective_images,
-    defective_descriptions=["..."] * len(defective_images),
+    defective_descriptions=["defective textile sample"] * len(defective_images),
     calib_images=calib_images,
     calib_labels=calib_labels,
     alpha=0.1,
@@ -107,16 +191,20 @@ results = few_shot_fault_classification_conformal(
 )
 ```
 
-Zero-shot (CLIP-like backends only):
+### Zero-shot classification (CLIP-like backends only)
+
+_Continues from Setup above._ Zero-shot also expects preprocessed tensors and additionally needs `tokenize_fn`. Setup loaded `openclipbase` (a CLIP-like backend), so `tokenize_fn` is non-`None`.
+
 ```python
 from conformal_clip import evaluate_zero_shot_predictions
 
-model, preprocess_fn, tokenize_fn = load_backend("openai", None, device)
+test_images = [preprocess_fn(img) for img in pil_test]
+
 metrics_df, results_df = evaluate_zero_shot_predictions(
-    labels=my_labels,
-    label_counts=my_label_counts,
-    test_images=[preprocess_fn(pil) for pil in my_pil_images],
-    test_image_filenames=my_filenames,
+    labels=["Nominal", "Defective"],
+    label_counts=[test_labels.count("Nominal"), test_labels.count("Defective")],
+    test_images=test_images,
+    test_image_filenames=test_filenames,
     model=model,
     device=device,
     tokenize_fn=tokenize_fn,
@@ -124,7 +212,10 @@ metrics_df, results_df = evaluate_zero_shot_predictions(
 )
 ```
 
-Benchmark across backends, calibration and conformal settings:
+### Benchmark across backends, calibration, and conformal settings
+
+_Continues from Setup above._ `benchmark_models` takes **PIL images** directly — no `preprocess_fn` step is needed, since the function loads each backend internally and applies that backend's own preprocessing as it sweeps.
+
 ```python
 from conformal_clip import benchmark_models
 
@@ -150,85 +241,33 @@ cls_df, cp_df, cls_style, cp_style = benchmark_models(
 
 ---
 
-## Prepare Images
-
-Using the example textile dataset (installed via `conformal-clip[data]`):
-```python
-import os
-from PIL import Image
-from conformal_clip_data import nominal_dir, local_dir, global_dir
-
-def list_paths(d):
-    exts = {".jpg", ".jpeg", ".png"}
-    return [os.path.join(d, f) for f in os.listdir(d) if os.path.splitext(f)[1].lower() in exts]
-
-nominal_paths = list_paths(nominal_dir())
-local_paths = list_paths(local_dir())
-global_paths = list_paths(global_dir())
-
-# Few-shot banks (exemplars)
-pil_nom_bank = [Image.open(p).convert("RGB") for p in nominal_paths[:50]]
-pil_def_bank = [Image.open(p).convert("RGB") for p in (local_paths[:25] + global_paths[:25])]
-
-# Calibration and test (example split)
-pil_calib = [Image.open(p).convert("RGB") for p in (nominal_paths[50:100] + local_paths[25:50] + global_paths[25:50])]
-calib_labels = ["Nominal"] * 50 + ["Defective"] * 50
-pil_test = [Image.open(p).convert("RGB") for p in (nominal_paths[100:150] + local_paths[50:75] + global_paths[50:75])]
-test_labels = ["Nominal"] * 50 + ["Defective"] * 50
-
-# Preprocess to tensors for a given backend
-# model, preprocess_fn, _ = load_backend("openclipbase", None, device)
-nominal_images = [preprocess_fn(img) for img in pil_nom_bank]
-defective_images = [preprocess_fn(img) for img in pil_def_bank]
-calib_images = [preprocess_fn(img) for img in pil_calib]
-test_images = [preprocess_fn(img) for img in pil_test]
-```
-
-Using your own local folders (commented template):
-```python
-# import os
-# from PIL import Image
-#
-# base_dir = "./data/textile_images/simulated"
-# nominal_dir = os.path.join(base_dir, "nominal")
-# defective_dir = os.path.join(base_dir, "defective")
-#
-# def list_paths(d):
-#     exts = {".jpg", ".jpeg", ".png"}
-#     return [os.path.join(d, f) for f in os.listdir(d) if os.path.splitext(f)[1].lower() in exts]
-#
-# nominal_paths = list_paths(nominal_dir)
-# defective_paths = list_paths(defective_dir)
-#
-# pil_nom_bank = [Image.open(p).convert("RGB") for p in nominal_paths[:50]]
-# pil_def_bank = [Image.open(p).convert("RGB") for p in defective_paths[:50]]
-# pil_calib = [Image.open(p).convert("RGB") for p in (nominal_paths[50:100] + defective_paths[50:100])]
-# calib_labels = ["Nominal"] * 50 + ["Defective"] * 50
-# pil_test = [Image.open(p).convert("RGB") for p in (nominal_paths[100:150] + defective_paths[100:150])]
-# test_labels = ["Nominal"] * 50 + ["Defective"] * 50
-#
-# model, preprocess_fn, _ = load_backend("openclipbase", None, device)
-# nominal_images = [preprocess_fn(img) for img in pil_nom_bank]
-# defective_images = [preprocess_fn(img) for img in pil_def_bank]
-# calib_images = [preprocess_fn(img) for img in pil_calib]
-# test_images = [preprocess_fn(img) for img in pil_test]
-```
-
----
-
 ## Examples
 
-See the `examples/` folder:
-- `textile_*.py`: Run each backend on the textile dataset (installed via `conformal-clip[data]`). Each script also shows how to adapt to your own data (commented snippet).
-- `benchmark_textile.py`: End-to-end benchmark and HTML output with highlighted best metrics.
+The `examples/` folder contains runnable end-to-end scripts. Four manufacturing-inspection datasets are demonstrated: **textile** (the default, ships via `conformal-clip[data]`), **extrusion**, **microstructure**, and **pipe**.
+
+Per-backend few-shot scripts (each runs one backend on the textile dataset and shows the full pipeline — load, split, calibrate, conformal):
+- `textile_mobileclip2.py` — MobileCLIP2 (lightweight CLIP variant)
+- `textile_mobilenetv4.py` — MobileNetV4 (vision-only timm)
+- `zero_shot_openclip.py` — Zero-shot baseline with an OpenCLIP backbone
+
+Benchmark suites (sweep multiple backends, calibration methods, and conformal modes; emit CSV + styled HTML):
+- `benchmark_textile.py`, `benchmark_extrusion.py`, `benchmark_microstructure.py`, `benchmark_pipe.py`
+
+Discovery and customization:
+- `custom_openclip_example.py` — using `custom-clip` and `custom-clip-hf`
+- `list_models_openclip_timm.py` — browse available OpenCLIP and timm models
+
+Each `_shared_<dataset>.py` module (e.g., `_shared_textile.py`) provides dataset-specific path resolution and reproducible train/calibration/test splits — the same pattern you can copy when adapting these scripts to your own data.
 
 ---
 
-## Discover and Use Custom OpenCLIP Models
+## Discover and use custom models
 
-You can list available model names (and their pretrained tags) directly from [`open_clip`](https://github.com/mlfoundations/open_clip). These names can be used with the `custom-clip` backend (and you may optionally provide a specific tag via the `model@tag` format). For Hugging Face repo IDs in the OpenCLIP ecosystem, use `custom-clip-hf`.
+Beyond the named backends in the tables above, you can load any OpenCLIP-compatible model or any timm vision backbone using the `custom-clip`, `custom-clip-hf`, or `custom-vision` backends. The snippets in this section are standalone — they do not depend on the Setup flow.
 
-Browse OpenCLIP models on Hugging Face: [Hugging Face OpenCLIP models](https://huggingface.co/models?library=open_clip)
+### Custom OpenCLIP (vision–language) models
+
+`custom-clip` accepts an OpenCLIP built-in model name (optionally with a pretrained tag via `"model@tag"`). `custom-clip-hf` accepts a Hugging Face repo id (`"hf-hub:org/repo"`). Browse models: [Hugging Face OpenCLIP](https://huggingface.co/models?library=open_clip).
 
 List available built-in model names and their tags:
 ```python
@@ -248,33 +287,35 @@ print("Available pretrained tags for", model_name, ":", sorted(by_model.get(mode
 
 Load a custom built-in model (optionally specify a tag):
 ```python
+import torch
 from conformal_clip import load_backend
-device = "cuda"  # or "cpu"
 
-# Using just the model name (the loader will pick a sensible pretrained tag)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# Using just the model name (the loader picks a sensible pretrained tag)
 model, preprocess_fn, tokenize_fn = load_backend(
-    backend="custom-clip", backend_model_id="ViT-L-14-quickgelu", device=device
+    backend="custom-clip", backend_model_id="ViT-L-14-quickgelu", device=device,
 )
 
-# Or explicitly specify a tag using the "model@tag" form
+# Or pin a specific tag with "model@tag"
 model, preprocess_fn, tokenize_fn = load_backend(
-    backend="custom-clip", backend_model_id="ViT-L-14-quickgelu@openai", device=device
+    backend="custom-clip", backend_model_id="ViT-L-14-quickgelu@openai", device=device,
 )
 ```
 
 Load from Hugging Face (OpenCLIP-compatible weights) using `custom-clip-hf`:
 ```python
-# Example: an hf-hub repo id (ensure you have access if it’s gated)
+# Gated repos require HF_TOKEN in the environment or a .env file (see Environment Setup).
 model, preprocess_fn, tokenize_fn = load_backend(
-    backend="custom-clip-hf", backend_model_id="hf-hub:org-or-user/repo-id", device=device
+    backend="custom-clip-hf", backend_model_id="hf-hub:org-or-user/repo-id", device=device,
 )
 ```
 
----
+### Custom timm (vision-only) models
 
-Browse timm models on Hugging Face: [Hugging Face timm models](https://huggingface.co/models?library=timm)
+`custom-vision` accepts any timm model id. The returned `tokenize_fn` is `None` because timm backbones do not have a text encoder, so vision-only backends are usable with `few_shot_fault_classification_conformal` and `benchmark_models` but **not** with `evaluate_zero_shot_predictions`. Browse models: [Hugging Face timm](https://huggingface.co/models?library=timm).
 
-List timm model names programmatically (vision-only backends):
+List timm model names programmatically:
 ```python
 import timm
 
@@ -283,35 +324,46 @@ names = timm.list_models(pretrained=True)
 print(f"Found {len(names)} pretrained timm models")
 print("First 20:", names[:20])
 
-# Filter by family/pattern (e.g., mobilenet*, convnext*)
+# Filter by family/pattern
 print("mobilenet*:", timm.list_models("mobilenet*", pretrained=True)[:10])
 print("convnext*:", timm.list_models("convnext*", pretrained=True)[:10])
 ```
 
+Load a custom timm model:
+```python
+import torch
+from conformal_clip import load_backend
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+model, preprocess_fn, tokenize_fn = load_backend(
+    backend="custom-vision",
+    backend_model_id="convnext_base.fb_in22k_ft_in1k",
+    device=device,
+)
+assert tokenize_fn is None  # vision-only backbones have no text encoder
+```
+
 ---
 
-## Project Structure
+## Project structure
 
 ```
 conformal_clip/
 ├── conformal_clip/          # Main package
-│   ├── __init__.py          # Package initialization and public API
-│   ├── backends.py          # Model loading for OpenCLIP and timm backends
-│   ├── wrappers.py          # CLIPWrapper: sklearn-compatible classifier
-│   ├── conformal.py         # Conformal prediction (global and Mondrian)
+│   ├── __init__.py          # Public API surface (see __all__)
+│   ├── backends.py          # load_backend(...) for OpenCLIP and timm
+│   ├── wrappers.py          # CLIPWrapper: sklearn-compatible few-shot classifier
+│   ├── conformal.py         # Global and Mondrian conformal prediction
 │   ├── zero_shot.py         # Zero-shot evaluation for CLIP-like models
-│   ├── metrics.py           # Classification and conformal metrics
-│   ├── benchmark.py         # Systematic benchmarking across backends
-│   └── viz.py               # Visualization utilities (confusion matrices)
-├── examples/                # Example scripts
-│   ├── textile_mobileclip2.py      # Few-shot with MobileCLIP2
-│   ├── textile_mobilenetv4.py      # Few-shot with MobileNetV4 (timm)
-│   ├── zero_shot_openclip.py       # Zero-shot classification example
-│   ├── benchmark_textile.py        # Full benchmarking suite
-│   ├── custom_openclip_example.py  # Using custom OpenCLIP models
-│   ├── list_models_openclip_timm.py # Discover available models
-│   └── _shared_textile.py          # Shared data loading utilities
-└── tests/                   # Unit and integration tests
+│   ├── metrics.py           # Classification and conformal-set metrics
+│   ├── benchmark.py         # benchmark_models(...) sweep utility
+│   ├── viz.py               # Confusion matrix plotting
+│   ├── image_io.py          # Image loading from disk or URL
+│   ├── io_github.py         # List image URLs from GitHub directories
+│   └── data_utils.py        # Train/calibration/test split helpers
+├── examples/                # Runnable end-to-end scripts (see "Examples" above)
+└── tests/                   # Unit and integration tests (pytest)
 ```
 
 ---
